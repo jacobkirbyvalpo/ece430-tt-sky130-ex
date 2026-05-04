@@ -25,7 +25,7 @@ async def apply_case(
     dut.ui_in.value = make_ui(heart_sw, oxygen_sw, display_select)
     dut.uio_in.value = make_uio_in(bp_sw)
 
-    await Timer(1, unit="ns")
+    await Timer(100, unit="ns")
 
     actual_value = int(dut.uo_out.value)
     actual_uio_out = int(dut.uio_out.value)
@@ -70,6 +70,10 @@ async def test_health_monitor(dut):
 
     dut.ena.value = 1
     dut.rst_n.value = 1
+    dut.ui_in.value = 0
+    dut.uio_in.value = 0
+
+    await Timer(100, unit="ns")
 
     await apply_case(
         dut,

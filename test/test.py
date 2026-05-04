@@ -1,76 +1,132 @@
-# SPDX-FileCopyrightText: © 2024 Tiny Tapeout
-# SPDX-License-Identifier: Apache-2.0
-
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
+from cocotb.triggers import Timer
 
 
-async def reset_dut(dut):
-    dut.ui_in.value = 0
-    dut.uio_in.value = 0
-    dut.ena.value = 1
-
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 5)
-
-    dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 2)
+def make_ui(heart_sw, oxygen_sw, display_select):
+    return ((display_select & 0x3) << 6) | ((oxygen_sw & 0x7) << 3) | (heart_sw & 0x7)
 
 
-async def run_multiply_case(dut, mc, mp):
-    assert 0 <= mc <= 127
-    assert 0 <= mp <= 255
+def make_uio_in(bp_sw):
+    return bp_sw & 0x7
 
-    dut.ui_in.value = mc
-    dut.uio_in.value = mp
-    await ClockCycles(dut.clk, 2)
 
-    dut.ui_in.value = (1 << 7) | mc
-    await ClockCycles(dut.clk, 1)
+async def apply_case(
+    dut,
+    heart_sw,
+    oxygen_sw,
+    bp_sw,
+    display_select,
+    expected_value,
+    expected_hb_alarm,
+    expected_oxygen_alarm,
+    expected_bp_alarm,
+):
+    dut.ui_in.value = make_ui(heart_sw, oxygen_sw, display_select)
+    dut.uio_in.value = make_uio_in(bp_sw)
 
-    dut.ui_in.value = mc
+    await Timer(1, unit="ns")
 
-    for _ in range(80):
-        await ClockCycles(dut.clk, 1)
-        if int(dut.uo_out.value) & 0x80:
-            break
+    actual_value = int(dut.uo_out.value)
+    actual_uio_out = int(dut.uio_out.value)
+    actual_uio_oe = int(dut.uio_oe.value)
 
-    raw_out = int(dut.uo_out.value)
-    done = (raw_out >> 7) & 1
-    got_product_low7 = raw_out & 0x7F
-    expected_product_low7 = (mc * mp) & 0x7F
+    actual_hb_alarm = (actual_uio_out >> 4) & 1
+    actual_oxygen_alarm = (actual_uio_out >> 5) & 1
+    actual_bp_alarm = (actual_uio_out >> 6) & 1
+    actual_any_alarm = (actual_uio_out >> 7) & 1
 
-    assert done == 1, f"done never went high for mc={mc}, mp={mp}"
-    assert got_product_low7 == expected_product_low7, (
-        f"wrong product for mc={mc}, mp={mp}: "
-        f"got low7={got_product_low7}, expected low7={expected_product_low7}"
+    expected_any_alarm = expected_hb_alarm | expected_oxygen_alarm | expected_bp_alarm
+
+    assert actual_value == expected_value, (
+        f"wrong selected value: got {actual_value}, expected {expected_value}"
+    )
+
+    assert actual_hb_alarm == expected_hb_alarm, (
+        f"wrong heart alarm: got {actual_hb_alarm}, expected {expected_hb_alarm}"
+    )
+
+    assert actual_oxygen_alarm == expected_oxygen_alarm, (
+        f"wrong oxygen alarm: got {actual_oxygen_alarm}, expected {expected_oxygen_alarm}"
+    )
+
+    assert actual_bp_alarm == expected_bp_alarm, (
+        f"wrong BP alarm: got {actual_bp_alarm}, expected {expected_bp_alarm}"
+    )
+
+    assert actual_any_alarm == expected_any_alarm, (
+        f"wrong any alarm: got {actual_any_alarm}, expected {expected_any_alarm}"
+    )
+
+    assert actual_uio_oe == 0xF0, (
+        f"wrong uio_oe: got {actual_uio_oe:#04x}, expected 0xf0"
     )
 
 
 @cocotb.test()
-async def test_pm32_selected_cases(dut):
+async def test_health_monitor(dut):
     clock = Clock(dut.clk, 10, unit="us")
     cocotb.start_soon(clock.start())
 
-    test_cases = [
-        (0, 0),
-        (0, 7),
-        (1, 1),
-        (1, 255),
-        (2, 3),
-        (3, 5),
-        (7, 9),
-        (10, 12),
-        (15, 15),
-        (31, 4),
-        (63, 2),
-        (64, 2),
-        (100, 3),
-        (127, 1),
-        (127, 255),
-    ]
+    dut.ena.value = 1
+    dut.rst_n.value = 1
 
-    for mc, mp in test_cases:
-        await reset_dut(dut)
-        await run_multiply_case(dut, mc, mp)
+    await apply_case(
+        dut,
+        heart_sw=0,
+        oxygen_sw=4,
+        bp_sw=3,
+        display_select=0,
+        expected_value=40,
+        expected_hb_alarm=1,
+        expected_oxygen_alarm=0,
+        expected_bp_alarm=0,
+    )
+
+    await apply_case(
+        dut,
+        heart_sw=2,
+        oxygen_sw=2,
+        bp_sw=3,
+        display_select=1,
+        expected_value=90,
+        expected_hb_alarm=0,
+        expected_oxygen_alarm=1,
+        expected_bp_alarm=0,
+    )
+
+    await apply_case(
+        dut,
+        heart_sw=3,
+        oxygen_sw=4,
+        bp_sw=6,
+        display_select=2,
+        expected_value=150,
+        expected_hb_alarm=0,
+        expected_oxygen_alarm=0,
+        expected_bp_alarm=1,
+    )
+
+    await apply_case(
+        dut,
+        heart_sw=3,
+        oxygen_sw=4,
+        bp_sw=1,
+        display_select=3,
+        expected_value=65,
+        expected_hb_alarm=0,
+        expected_oxygen_alarm=0,
+        expected_bp_alarm=0,
+    )
+
+    await apply_case(
+        dut,
+        heart_sw=4,
+        oxygen_sw=4,
+        bp_sw=5,
+        display_select=0,
+        expected_value=100,
+        expected_hb_alarm=0,
+        expected_oxygen_alarm=0,
+        expected_bp_alarm=0,
+    )

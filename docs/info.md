@@ -10,7 +10,7 @@ This is only an educational digital logic project and is not meant to be used as
 
 ## Block Diagram
 
-![Block Diagram](block_diagram.png)
+![Block Diagram](block_diagram_fin.png)
 
 ## Tiny Tapeout I/O Pin Assignments
 

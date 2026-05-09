@@ -1,6 +1,6 @@
 project:
   title: "Health Monitor Alarm Decoder"
-  author: "ECE 429 Student"
+  author: "Jacob Kirby"
   discord: ""
   description: "A Tiny Tapeout health monitor alarm decoder that maps switch-coded health readings to values and alarm outputs."
   language: "Verilog"

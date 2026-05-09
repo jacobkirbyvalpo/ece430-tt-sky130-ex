@@ -8,6 +8,10 @@ The design also has a display select input. This chooses whether `uo_out[7:0]` s
 
 This is only an educational digital logic project and is not meant to be used as a real medical device.
 
+## Block Diagram
+
+![Block Diagram](block_diagram.png)
+
 ## Tiny Tapeout I/O Pin Assignments
 
 | Tiny Tapeout Pin | Direction | Internal Signal | Purpose |
@@ -56,6 +60,3 @@ The `any_alarm` output is high whenever at least one of the three alarm outputs 
 
 The cocotb test drives several input combinations and checks the selected output value, the three alarm signals, the combined alarm signal, and the `uio_oe` direction bits. This verifies that the decoders, display selection logic, and alarm threshold logic work correctly.
 
-## Block Diagram
-
-The block diagram will be added later. It will show the Tiny Tapeout input pins feeding the heart-rate, oxygen, and blood-pressure decoder blocks, then the threshold/alarm logic and display multiplexer driving the Tiny Tapeout output pins.
